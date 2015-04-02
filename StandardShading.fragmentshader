@@ -1,0 +1,80 @@
+#version 330 core
+
+// Interpolated values from the vertex shaders
+in vec2 UV;
+in vec2 nUV;
+in vec3 Position_worldspace;
+in vec3 Normal_cameraspace;
+in vec3 EyeDirection_cameraspace;
+in vec3 LightDirection_cameraspace;
+in vec3 Light2Direction_cameraspace;
+
+// Ouput data
+out vec3 color;
+
+// Values that stay constant for the whole mesh.
+uniform sampler2D colorTextureSampler;
+uniform sampler2D specularTextureSampler;
+uniform mat4 MV;
+uniform vec3 LightPosition_worldspace;
+uniform vec3 Light2Position_worldspace;
+uniform int textureShading;
+
+void main(){
+	vec3 LightColor1 = vec3(1, 1,   0.9);
+	vec3 LightColor2 = vec3(1, 0.6, 0.4);
+	
+	float Light1Power = 1.5f; 
+	float Light2Power = 0.8f; 
+	// Material properties
+	vec3 MaterialDiffuseColor = vec3(0.7, 0.7, 0.7);
+	vec3 MaterialAmbientColor = vec3(0.2, 0.2, 0.2) * MaterialDiffuseColor;
+	vec3 MaterialSpecularColor = vec3(1.0, 1.0, 1.0);
+	
+
+	if(textureShading == 1) {
+		MaterialSpecularColor = length(texture(specularTextureSampler, 10*UV).rgb) * vec3(1.0, 1.0, 1.0);
+		MaterialDiffuseColor = 0.5 * vec3(0.5, 0.5, 0.5) + 0.5 * texture(colorTextureSampler, 10*UV).rgb;
+	}
+
+	// Distance to the light
+	float distance = length( LightPosition_worldspace - Position_worldspace );
+
+	vec3 n;
+	vec3 l;
+	vec3 E;
+	vec3 R;
+
+	float cosTheta1;
+	float cosAlpha1;
+	float cosTheta2;
+	float cosAlpha2;
+
+	// light independent
+	n = normalize( Normal_cameraspace );
+	E = normalize(EyeDirection_cameraspace);
+
+	// ++++ light 1 ++++
+	l = normalize( LightDirection_cameraspace );
+	cosTheta1 = clamp( dot( n,l ), 0, 1 );
+	R = reflect(-l,n);
+	cosAlpha1 = clamp( dot( E,R ), 0, 1 );
+
+	// ++++ light 2 ++++
+	l = normalize( Light2Direction_cameraspace );
+	cosTheta2 = clamp( dot( n,l ), 0, 1 );
+	R = reflect(-l,n);
+	cosAlpha2 = clamp( dot( E,R ), 0, 1 );
+	
+	color = 
+		MaterialAmbientColor																					// Ambient : simulates indirect lighting
+		// light 1																		
+		+ MaterialDiffuseColor * LightColor1 * Light1Power * cosTheta1 / (5*distance*distance)					// Diffuse
+		+ 0.2 * MaterialSpecularColor * LightColor1 * Light1Power * pow(cosAlpha1,10) / (5*distance*distance)		// Specular
+		// light 2
+		+ MaterialDiffuseColor * LightColor2 * Light2Power * cosTheta2											// Diffuse
+		+ 0.1 * MaterialSpecularColor * LightColor2 * Light2Power * pow(cosAlpha2,10);							// Specular
+
+	//color = MaterialDiffuseColor;
+}
+
